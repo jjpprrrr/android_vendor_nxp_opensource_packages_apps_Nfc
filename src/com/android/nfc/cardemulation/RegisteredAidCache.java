@@ -2,7 +2,7 @@
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
- * Copyright (C) 2018-2019 NXP Semiconductors
+ * Copyright (C) 2018-2020 NXP Semiconductors
  * The original Work has been changed by NXP Semiconductors.
  * Copyright (C) 2014 The Android Open Source Project
  *
@@ -966,6 +966,16 @@ public class RegisteredAidCache {
       }
     }
 
+    public ComponentName getPreferredService() {
+        if (mPreferredForegroundService != null) {
+            // return current foreground service
+            return mPreferredForegroundService;
+        } else {
+            // return current preferred service
+            return mPreferredPaymentService;
+        }
+    }
+
     public void onNfcDisabled() {
         synchronized (mLock) {
             mNfcEnabled = false;
@@ -1032,10 +1042,10 @@ public class RegisteredAidCache {
           /*Mapping SWITCH_ON(0x01) to PROP_SCRN_ON_UNLOCKED(0x20)*/
           tempPwrState |= PROP_SCRN_ON_UNLOCKED;
         }
-        if((inputPwr & SCREEN_STATE_OFF_UNLOCKED) == SCREEN_STATE_OFF_UNLOCKED||
-                (inputPwr & SCREEN_STATE_OFF_UNLOCKED) == SCREEN_STATE_OFF_UNLOCKED) {
-          /*Mapping SCREEN_STATE_OFF_UNLOCKED or SCREEN_STATE_OFF_UNLOCKED
-           * to SCREEN_STATE_OFF_UNLOCKED*/
+        if((inputPwr & SCREEN_STATE_OFF_UNLOCKED) == SCREEN_STATE_OFF_UNLOCKED ||
+                (inputPwr & SCREEN_STATE_OFF_LOCKED) == SCREEN_STATE_OFF_LOCKED) {
+          /*Mapping SCREEN_STATE_OFF_UNLOCKED(0x08) or SCREEN_STATE_OFF_LOCKED(0x20)
+           * to PROP_SCRN_OFF(0x08)*/
           tempPwrState |= PROP_SCRN_OFF;
         }
         inputPwr = tempPwrState;
