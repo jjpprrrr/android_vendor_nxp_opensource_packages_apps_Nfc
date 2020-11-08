@@ -56,7 +56,7 @@ public class TapAgainDialog extends AlertActivity implements DialogInterface.OnC
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setTheme(com.android.nfc.R.style.DiagAlertDayNight);
+        setTheme(R.style.Theme_DeviceDefault_Light_Dialog_Alert);
 
         final NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
         mCardEmuManager = CardEmulation.getInstance(adapter);
