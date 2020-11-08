@@ -1,5 +1,6 @@
 cc_library_shared {
     name: "libsn100nfc_nci_jni",
+    system_ext_specific: true,
 
     cflags:
      ["-DNXP_EXTNS=TRUE"]  + [
@@ -35,6 +36,7 @@ cc_library_shared {
         "libsn100nfc-nci",
         "libchrome",
         "libbase",
+        "vendor.nxp.hardware.nfc@2.0",
     ],
     product_variables: {
         debuggable: {
@@ -42,4 +44,8 @@ cc_library_shared {
         },
     },
     static_libs: ["libxml2"],
+    sanitize: {
+        cfi: true,
+        integer_overflow: true,
+    },
 }

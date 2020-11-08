@@ -29,7 +29,7 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 *
-*  Copyright 2018-2019 NXP
+*  Copyright 2018-2020 NXP
 *
 ******************************************************************************/
 package com.android.nfc;
@@ -78,21 +78,7 @@ public interface DeviceHost {
         /**
          * Notifies SWP Reader Events.
          */
-        public void onReaderRequestedFail();
-
-        public void onReaderStartSuccess();
-
-        public void onReaderStartFail();
-
-        public void onReaderRestart();
-
-        public void onReaderStopSuccess();
-
-        public void onReaderStopFail();
-
-        public void onReaderRemoveCard();
-
-        public void onReaderTimeout();
+        public void onScrNotifyEvents(int event);
 
         public void onNfcTransactionEvent(byte[] aid, byte[] data, String seName);
     }
@@ -247,6 +233,8 @@ public interface DeviceHost {
 
     public int getDefaultDesfireRoute();
 
+    public int getT4TNfceePowerState();
+
     public int getDefaultMifareCLTRoute();
 
     public int getDefaultFelicaCLTRoute();
@@ -324,6 +312,8 @@ public interface DeviceHost {
 
     int mposSetReaderMode(boolean on);
 
+    int configureSecureReaderMode(boolean on, String readerType);
+
     boolean mposGetReaderMode();
 
     public int doNfcSelfTest(int type);
@@ -357,4 +347,7 @@ public interface DeviceHost {
     public boolean isFieldDetectEnabled();
     public int doWriteT4tData(byte[] fileId, byte[] data, int length);
     public byte[] doReadT4tData(byte[] fileId);
+    public boolean doLockT4tData(boolean lock);
+    public boolean isLockedT4tData();
+    public boolean doClearNdefT4tData();
 }

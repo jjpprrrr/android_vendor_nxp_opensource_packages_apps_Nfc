@@ -16,6 +16,8 @@
 
 package com.android.nfc.beam;
 
+import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+
 import com.android.nfc.R;
 import com.android.nfc.beam.FireflyRenderer;
 
@@ -239,7 +241,8 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.OPAQUE);
         mWindowLayoutParams.privateFlags |=
-                WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
+                WindowManager.LayoutParams.SYSTEM_FLAG_SHOW_FOR_ALL_USERS;
+        mWindowLayoutParams.layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
         mWindowLayoutParams.token = new Binder();
 
         mFrameCounterAnimator = new TimeAnimator();
@@ -539,7 +542,7 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
         mContext.unregisterReceiver(mReceiver);
         if (mToastString != null) {
             Toast toast = Toast.makeText(mContext, mToastString, Toast.LENGTH_LONG);
-            toast.getWindowParams().privateFlags |= LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
+            toast.getWindowParams().privateFlags |= LayoutParams.SYSTEM_FLAG_SHOW_FOR_ALL_USERS;
             toast.show();
         }
         mToastString = null;
@@ -577,17 +580,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
                 mState = STATE_IDLE;
             } else if (mState == STATE_W4_SCREENSHOT_PRESEND_REQUESTED ||
                     mState == STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED) {
-                if (result != null) {
-                    mScreenshotBitmap = result;
-                    boolean requestTap = (mState == STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED);
-                    mState = STATE_W4_PRESEND;
-                    showPreSend(requestTap);
-                } else {
-                    // Failed to take screenshot; reset state to idle
-                    // and don't do anything
-                    Log.e(TAG, "Failed to create screenshot");
-                    mState = STATE_IDLE;
-                }
+                mScreenshotBitmap = result;
+                boolean requestTap = (mState == STATE_W4_SCREENSHOT_PRESEND_NFC_TAP_REQUESTED);
+                mState = STATE_W4_PRESEND;
+                showPreSend(requestTap);
             } else {
                 Log.e(TAG, "Invalid state on screenshot completion: " + Integer.toString(mState));
             }
@@ -879,6 +875,10 @@ public class SendUi implements Animator.AnimatorListener, View.OnTouchListener,
 
     @Override
     public void onActionModeFinished(ActionMode mode) {
+    }
+
+    public boolean isSendUiInIdleState() {
+        return mState == STATE_IDLE;
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {

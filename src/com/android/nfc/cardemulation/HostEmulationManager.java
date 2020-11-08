@@ -2,7 +2,7 @@
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
- * Copyright (C) 2018 NXP Semiconductors
+ * Copyright (C) 2018-2020 NXP Semiconductors
  * The original Work has been changed by NXP Semiconductors.
  * Copyright (C) 2013 The Android Open Source Project
  *
@@ -32,6 +32,7 @@ import android.nfc.cardemulation.HostApduService;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
@@ -39,6 +40,7 @@ import android.os.UserHandle;
 import android.util.Log;
 
 import com.android.nfc.NfcService;
+import com.android.nfc.NfcStatsLog;
 import com.android.nfc.cardemulation.RegisteredAidCache.AidResolveInfo;
 
 import java.io.FileDescriptor;
@@ -114,13 +116,15 @@ public class HostEmulationManager {
     }
 
     public void onPreferredPaymentServiceChanged(ComponentName service) {
-        synchronized (mLock) {
-            if (service != null) {
-                bindPaymentServiceLocked(ActivityManager.getCurrentUser(), service);
-            } else {
-                unbindPaymentServiceLocked();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            synchronized (mLock) {
+                if (service != null) {
+                    bindPaymentServiceLocked(ActivityManager.getCurrentUser(), service);
+                } else {
+                    unbindPaymentServiceLocked();
+                }
             }
-        }
+        });
      }
 
      public void onPreferredForegroundServiceChanged(ComponentName service) {
@@ -227,12 +231,12 @@ public class HostEmulationManager {
                         mState = STATE_W4_SERVICE;
                     }
                     if(CardEmulation.CATEGORY_PAYMENT.equals(resolveInfo.category))
-                      StatsLog.write(StatsLog.NFC_CARDEMULATION_OCCURRED,
-                                     StatsLog.NFC_CARDEMULATION_OCCURRED__CATEGORY__HCE_PAYMENT,
+                      NfcStatsLog.write(NfcStatsLog.NFC_CARDEMULATION_OCCURRED,
+                                     NfcStatsLog.NFC_CARDEMULATION_OCCURRED__CATEGORY__HCE_PAYMENT,
                                      "HCE");
                     else
-                      StatsLog.write(StatsLog.NFC_CARDEMULATION_OCCURRED,
-                                     StatsLog.NFC_CARDEMULATION_OCCURRED__CATEGORY__HCE_OTHER,
+                      NfcStatsLog.write(NfcStatsLog.NFC_CARDEMULATION_OCCURRED,
+                                     NfcStatsLog.NFC_CARDEMULATION_OCCURRED__CATEGORY__HCE_OTHER,
                                      "HCE");
 
                 } else {
@@ -313,7 +317,8 @@ public class HostEmulationManager {
             Intent aidIntent = new Intent(HostApduService.SERVICE_INTERFACE);
             aidIntent.setComponent(service);
             if (mContext.bindServiceAsUser(aidIntent, mConnection,
-                    Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
+                Context.BIND_AUTO_CREATE | Context.BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS,
+                UserHandle.CURRENT)) {
                 mServiceBound = true;
             } else {
                 Log.e(TAG, "Could not bind service.");
@@ -371,7 +376,8 @@ public class HostEmulationManager {
         intent.setComponent(service);
         mLastBoundPaymentServiceName = service;
         if (mContext.bindServiceAsUser(intent, mPaymentConnection,
-                Context.BIND_AUTO_CREATE, new UserHandle(userId))) {
+                Context.BIND_AUTO_CREATE | Context.BIND_ALLOW_BACKGROUND_ACTIVITY_STARTS,
+                new UserHandle(userId))) {
           mPaymentServiceBound = true;
         } else {
             Log.e(TAG, "Could not bind (persistent) payment service.");

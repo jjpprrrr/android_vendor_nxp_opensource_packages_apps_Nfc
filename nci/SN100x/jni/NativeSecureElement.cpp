@@ -2,7 +2,7 @@
  * Copyright (c) 2016, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
- * Copyright (C) 2018-2019 NXP Semiconductors
+ * Copyright (C) 2018-2020 NXP Semiconductors
  * The original Work has been changed by NXP Semiconductors.
  *
  * Copyright (C) 2012 The Android Open Source Project
@@ -36,6 +36,8 @@ using android::base::StringPrintf;
 
 namespace android
 {
+#define INVALID_LEN_SW1 0x64
+#define INVALID_LEN_SW2 0xFF
 static const int EE_ERROR_INIT = -3;
 extern bool nfcManager_isNfcActive();
 /*******************************************************************************
@@ -186,15 +188,14 @@ static jboolean nativeNfcSecureElement_doResetForEseCosUpdate(JNIEnv*, jobject,
   int ret = -1;
   NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
   tHAL_NFC_ENTRY* halFuncEntries = theInstance.GetHalEntryFuncs ();
-  nfc_nci_IoctlInOutData_t inpOutData;
-  inpOutData.inp.level = NCI_ESE_HARD_RESET_IOCTL;
+
   LOG(INFO) << StringPrintf("%s: Entry", __func__);
   if(NULL == halFuncEntries) {
     LOG(INFO) << StringPrintf("%s: halFuncEntries is NULL", __func__);
   } else {
-    ret = halFuncEntries->ioctl(HAL_NFC_IOCTL_ESE_HARD_RESET, (void*)&inpOutData);
-    if(ret < 0) {
-      LOG(INFO) << StringPrintf("%s: IOCTL failed", __func__);
+    ret = theInstance.resetEse((uint64_t)NFA_ESE_HARD_RESET);
+    if(ret == 0) {
+      LOG(INFO) << StringPrintf("%s: reset IOCTL failed", __func__);
     } else {
       stat = true;
     }
@@ -257,6 +258,15 @@ static jbyteArray nativeNfcSecureElement_doTransceive (JNIEnv* e, jobject, jint 
     int32_t recvBufferActualSize = 0;
     ScopedByteArrayRW bytes(e, data);
     LOG(INFO) << StringPrintf("%s: enter; handle=0x%X; buf len=%zu", __func__, handle, bytes.size());
+    if(bytes.size() > recvBufferMaxSize) {
+        LOG(ERROR) << StringPrintf("%s: datasize not supported", __func__);
+        uint8_t respBuf[] = {INVALID_LEN_SW1, INVALID_LEN_SW2};
+        jbyteArray resp = e->NewByteArray(sizeof(respBuf));
+        if (resp != NULL) {
+          e->SetByteArrayRegion(resp, 0, sizeof(respBuf), (jbyte *) respBuf);
+        }
+        return resp;
+    }
 
     SecureElement &se = SecureElement::getInstance();
     if(!se.mIsWiredModeOpen)

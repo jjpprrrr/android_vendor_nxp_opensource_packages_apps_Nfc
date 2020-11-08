@@ -210,8 +210,14 @@ class NfcDispatcher {
             return intent;
         }
 
+        public boolean hasIntentReceiver() {
+            return packageManager.queryIntentActivitiesAsUser(intent, 0,
+                    ActivityManager.getCurrentUser()).size() > 0;
+        }
+
         public boolean isWebIntent() {
-            return ndefUri != null && ndefUri.normalizeScheme().getScheme().startsWith("http");
+            return ndefUri != null && ndefUri.normalizeScheme().getScheme() != null &&
+                ndefUri.normalizeScheme().getScheme().startsWith("http");
         }
 
         public String getUri() {
@@ -235,7 +241,7 @@ class NfcDispatcher {
                     ActivityManager.getCurrentUser());
             if (activities.size() > 0) {
                 context.startActivityAsUser(rootIntent, UserHandle.CURRENT);
-                StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
+                NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
                 return true;
             }
             return false;
@@ -247,7 +253,7 @@ class NfcDispatcher {
             if (activities.size() > 0) {
                 rootIntent.putExtra(NfcRootActivity.EXTRA_LAUNCH_INTENT, intentToStart);
                 context.startActivityAsUser(rootIntent, UserHandle.CURRENT);
-                StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
+                NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
                 return true;
             }
             return false;
@@ -303,23 +309,24 @@ class NfcDispatcher {
 
         if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters,
                 overrideTechLists)) {
-            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
+            NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (tryPeripheralHandover(message)) {
             if (DBG) Log.i(TAG, "matched BT HANDOVER");
-            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__BT_PAIRING);
+            NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__BT_PAIRING);
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
             if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
-            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__WIFI_CONNECT);
+            NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__WIFI_CONNECT);
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (provisioningOnly) {
+            NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__PROVISION);
             if (message == null) {
                 // We only allow NDEF-message dispatch in provisioning mode
                 return DISPATCH_FAIL;
@@ -331,7 +338,6 @@ class NfcDispatcher {
                 Log.e(TAG, "Dropping NFC intent in provisioning mode.");
                 return DISPATCH_FAIL;
             }
-            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__PROVISION);
         }
 
         if (tryNdef(dispatch, message)) {
@@ -355,7 +361,7 @@ class NfcDispatcher {
         }
 
         if (DBG) Log.i(TAG, "no match");
-        StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__OTHERS);
+        NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__OTHERS);
         return DISPATCH_FAIL;
     }
 
@@ -534,9 +540,13 @@ class NfcDispatcher {
                 return false;
             }
             Intent appLaunchIntent = pm.getLaunchIntentForPackage(firstPackage);
-            if (appLaunchIntent != null && dispatch.tryStartActivity(appLaunchIntent)) {
-                if (DBG) Log.i(TAG, "matched AAR to application launch");
-                return true;
+            if (appLaunchIntent != null) {
+                ResolveInfo ri = pm.resolveActivity(appLaunchIntent, 0);
+                if (ri != null && ri.activityInfo != null && ri.activityInfo.exported &&
+                        dispatch.tryStartActivity(appLaunchIntent)) {
+                    if (DBG) Log.i(TAG, "matched AAR to application launch");
+                    return true;
+                }
             }
             // Find the package in Market:
             Intent marketIntent = getAppSearchIntent(firstPackage);
@@ -549,16 +559,25 @@ class NfcDispatcher {
         // regular launch
         dispatch.intent.setPackage(null);
 
-        if (dispatch.isWebIntent()) {
+        if (dispatch.isWebIntent() && dispatch.hasIntentReceiver()) {
             if (DBG) Log.i(TAG, "matched Web link - prompting user");
             showWebLinkConfirmation(dispatch);
-            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__URL);
+            NfcStatsLog.write(NfcStatsLog.NFC_TAG_OCCURRED, NfcStatsLog.NFC_TAG_OCCURRED__TYPE__URL);
             return true;
         }
 
-        if (dispatch.tryStartActivity()) {
-            if (DBG) Log.i(TAG, "matched NDEF");
-            return true;
+        try {
+            UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
+            PackageManager pm = mContext.createPackageContextAsUser("android", 0,
+                        currentUser).getPackageManager();
+            ResolveInfo ri = pm.resolveActivity(intent, 0);
+
+            if (ri != null && ri.activityInfo != null && ri.activityInfo.exported && dispatch.tryStartActivity()) {
+                if (DBG) Log.i(TAG, "matched NDEF");
+                return true;
+            }
+        } catch (NameNotFoundException ignore) {
+            Log.e(TAG, "Could not create user package context");
         }
 
         return false;
@@ -600,7 +619,9 @@ class NfcDispatcher {
             if (filterMatch(tagTechs, info.techs) &&
                     isComponentEnabled(pm, info.resolveInfo)) {
                 // Add the activity as a match if it's not already in the list
-                if (!matches.contains(info.resolveInfo)) {
+                // Check if exported flag is not explicitly set to false to prevent
+                // SecurityExceptions.
+                if (!matches.contains(info.resolveInfo) && info.resolveInfo.activityInfo.exported) {
                     matches.add(info.resolveInfo);
                 }
             }
@@ -735,7 +756,7 @@ class NfcDispatcher {
         }
         AlertDialog.Builder builder = new AlertDialog.Builder(
                 mContext.getApplicationContext(),
-                android.R.style.Theme_DeviceDefault_Light_Dialog_Alert);
+                R.style.DiagAlertDayNight);
         builder.setTitle(R.string.title_confirm_url_open);
         LayoutInflater inflater = LayoutInflater.from(mContext);
         View view = inflater.inflate(R.layout.url_open_confirmation, null);

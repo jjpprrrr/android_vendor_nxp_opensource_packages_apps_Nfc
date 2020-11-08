@@ -2,7 +2,7 @@
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
- * Copyright (C) 2018-2019 NXP Semiconductors
+ * Copyright (C) 2018-2020 NXP Semiconductors
  * The original Work has been changed by NXP Semiconductors.
  * Copyright (C) 2014 The Android Open Source Project
  *
@@ -71,6 +71,8 @@ public class RegisteredAidCache {
     static final int SCREEN_STATE_OFF_UNLOCKED = 0x08;
     static final int SCREEN_STATE_ON_LOCKED = 0x10;
     static final int SCREEN_STATE_OFF_LOCKED = 0x20;
+    static final int SCREEN_STATE_INVALID = 0x00;
+    static final int SCREEN_STATE_DEFAULT_MASK = 0x16;
     // Represents a single AID registration of a service
     final class ServiceAidInfo {
         NfcApduServiceInfo service;
@@ -491,10 +493,16 @@ public class RegisteredAidCache {
     }
 
     static boolean isPrefix(String aid) {
+        if (aid == null) {
+            return false;
+        }
         return aid.endsWith("*");
     }
 
     static boolean isSubset(String aid) {
+        if (aid == null) {
+            return false;
+        }
         return aid.endsWith("#");
     }
 
@@ -844,10 +852,20 @@ public class RegisteredAidCache {
                     {
                         if(aidType.isOnHost)
                         {
-                            powerstate = (mGsmaPwrState & 0x39);
+                            if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                                powerstate = updateRoutePowerState(mGsmaPwrState & 0x39);
+                            } else {
+                                powerstate = (mGsmaPwrState & 0x39);
+                            }
                         } else
                         {
-                            powerstate = mGsmaPwrState;
+                            if(NfcService.getInstance().getNciVersion() ==
+                                           NfcService.getInstance().NCI_VERSION_1_0){
+                                powerstate = updateRoutePowerState(mGsmaPwrState);
+                            } else {
+                                powerstate = (mGsmaPwrState);
+                            }
                         }
                         if (DBG) Log.d(TAG," Setting GSMA power state"+ aid  + powerstate);
                     }
@@ -856,30 +874,56 @@ public class RegisteredAidCache {
                 boolean isOnHost = resolveInfo.defaultService.isOnHost();
                 if ((powerstate & POWER_STATE_SWITCH_ON) == POWER_STATE_SWITCH_ON )
                 {
-                  screenstate |= SCREEN_STATE_ON_LOCKED;
+                  if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                      screenstate |= updateRoutePowerState(SCREEN_STATE_ON_LOCKED);
+                  } else {
+                      screenstate |= SCREEN_STATE_ON_LOCKED;
+                  }
                   if (!isOnHost) {
                     if (DBG) Log.d(TAG," set screen off enable for " + aid);
-                    screenstate |= SCREEN_STATE_OFF_UNLOCKED | SCREEN_STATE_OFF_LOCKED;
+                    if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                        screenstate |= updateRoutePowerState(SCREEN_STATE_OFF_UNLOCKED) |
+                              updateRoutePowerState(SCREEN_STATE_OFF_LOCKED);
+                    } else{
+                        screenstate |= SCREEN_STATE_OFF_UNLOCKED | SCREEN_STATE_OFF_LOCKED;
+                    }
                   }
                   if(mGsmaPwrState == 0x00)
                     powerstate |= screenstate;
                 }
 
                int route = isOnHost ? 0 : seInfo.getSeId();
-               if (DBG) Log.d(TAG," AID power state"+ aid  + powerstate  +"route"+route);
+               if (DBG) Log.d(TAG," AID power state "+ aid  + " "+ powerstate  +" route "+route);
                aidType.route = route;
-               aidType.powerstate = powerstate;
+               if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                   aidType.powerstate = powerstate;
+               } else {
+                   aidType.powerstate = updateRoutePowerState(powerstate);
+               }
                routingEntries.put(aid, aidType);
             } else if (resolveInfo.services.size() == 1) {
                 // Only one service, but not the default, must route to host
                 // to ask the user to choose one.
                 aidType.isOnHost = true;
-                aidType.powerstate = POWER_STATE_SWITCH_ON | SCREEN_STATE_ON_LOCKED;
-                if (DBG) Log.d(TAG," AID power state 2"+ aid  +" "+aidType.powerstate);
+                if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                    aidType.powerstate = updateRoutePowerState(POWER_STATE_SWITCH_ON) |
+                          updateRoutePowerState(SCREEN_STATE_ON_LOCKED);
+                } else {
+                    aidType.powerstate = POWER_STATE_SWITCH_ON | SCREEN_STATE_ON_LOCKED;
+                }
+                if (DBG) Log.d(TAG," AID power state 2 "+ aid  +" "+aidType.powerstate);
                 if(mGsmaPwrState > 0)
                 {
                     aidType.powerstate = (mGsmaPwrState & 0x39);
                     if (DBG) Log.d(TAG," Setting GSMA power state"+ aid  + " " +aidType.powerstate);
+                }
+                if(NfcService.getInstance().getNciVersion() >=
+                                        NfcService.getInstance().NCI_VERSION_2_0){
+                    aidType.powerstate = updateRoutePowerState(aidType.powerstate);
                 }
                 routingEntries.put(aid, aidType);
             } else if (resolveInfo.services.size() > 1) {
@@ -906,13 +950,28 @@ public class RegisteredAidCache {
                 }
                 aidType.isOnHost = onHost;
                 aidType.offHostSE = onHost ? null : offHostSE;
-                aidType.powerstate = POWER_STATE_SWITCH_ON | SCREEN_STATE_ON_LOCKED;
+                if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                    aidType.powerstate = updateRoutePowerState(POWER_STATE_SWITCH_ON) |
+                          updateRoutePowerState(SCREEN_STATE_ON_LOCKED);
+                } else {
+                    aidType.powerstate = POWER_STATE_SWITCH_ON | SCREEN_STATE_ON_LOCKED;
+                }
                 if(mGsmaPwrState > 0)
                 {
-                    aidType.powerstate = (mGsmaPwrState & 0x39);
+                    if(NfcService.getInstance().getNciVersion() ==
+                                        NfcService.getInstance().NCI_VERSION_1_0){
+                        aidType.powerstate = updateRoutePowerState(mGsmaPwrState & 0x39);
+                    } else {
+                        aidType.powerstate = (mGsmaPwrState & 0x39);
+                    }
                     if (DBG) Log.d(TAG," Setting GSMA power state"+ aid  + " " +aidType.powerstate);
                 }
-                if (DBG) Log.d(TAG," AID power state 3"+ aid  + aidType.powerstate);
+                if(NfcService.getInstance().getNciVersion() >=
+                                        NfcService.getInstance().NCI_VERSION_2_0){
+                    aidType.powerstate = updateRoutePowerState(aidType.powerstate);
+                }
+                if (DBG) Log.d(TAG," AID power state 3 "+ aid  + aidType.powerstate);
                 routingEntries.put(aid, aidType);
             }
         }
@@ -954,6 +1013,16 @@ public class RegisteredAidCache {
       synchronized (mLock) {
         generateAidCacheLocked();
       }
+    }
+
+    public ComponentName getPreferredService() {
+        if (mPreferredForegroundService != null) {
+            // return current foreground service
+            return mPreferredForegroundService;
+        } else {
+            // return current preferred service
+            return mPreferredPaymentService;
+        }
     }
 
     public void onNfcDisabled() {
@@ -1005,5 +1074,32 @@ public class RegisteredAidCache {
         pw.println("");
         mRoutingManager.dump(fd, pw, args);
         pw.println("");
+    }
+
+    int updateRoutePowerState(int inputPwr) {
+      final int PROP_SCRN_ON_UNLOCKED = 0x20;
+      final int PROP_SCRN_OFF = 0x08;
+      Log.d(TAG, "updateRoutePowerState inputPwr "+ inputPwr);
+
+      /*If extns service present mapping proprietary pwr state
+       * to NCI2.0 pwr state*/
+      if((NfcService.getInstance().isNfcExtnsPresent()) &&
+              (inputPwr != SCREEN_STATE_INVALID)) {
+        int tempPwrState = inputPwr & SCREEN_STATE_DEFAULT_MASK;
+
+        if((inputPwr & POWER_STATE_SWITCH_ON) == POWER_STATE_SWITCH_ON) {
+          /*Mapping SWITCH_ON(0x01) to PROP_SCRN_ON_UNLOCKED(0x20)*/
+          tempPwrState |= PROP_SCRN_ON_UNLOCKED;
+        }
+        if((inputPwr & SCREEN_STATE_OFF_UNLOCKED) == SCREEN_STATE_OFF_UNLOCKED ||
+                (inputPwr & SCREEN_STATE_OFF_LOCKED) == SCREEN_STATE_OFF_LOCKED) {
+          /*Mapping SCREEN_STATE_OFF_UNLOCKED(0x08) or SCREEN_STATE_OFF_LOCKED(0x20)
+           * to PROP_SCRN_OFF(0x08)*/
+          tempPwrState |= PROP_SCRN_OFF;
+        }
+        inputPwr = tempPwrState;
+      }
+      Log.d(TAG, "updateRoutePowerState outputPwr "+ inputPwr);
+      return inputPwr;
     }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
- * Copyright (C) 2018-2019 NXP Semiconductors
+ * Copyright (C) 2018-2020 NXP Semiconductors
  * The original Work has been changed by NXP Semiconductors.
  * Copyright (C) 2010 The Android Open Source Project
  *
@@ -38,7 +38,7 @@ import android.os.SystemProperties;
 
 import android.os.RemoteException;
 import java.util.NoSuchElementException;
-import vendor.nxp.hardware.nfc.V1_1.INqNfc;
+import vendor.nxp.hardware.nfc.V2_0.INqNfc;
 
 /**
  * Native interface to the NFC Manager functions
@@ -98,7 +98,7 @@ public class NativeNfcManager implements DeviceHost {
 
         try {
             if(mNqHal == null) {
-                Log.d(TAG, "INqNfc 1.1 interface not initialized yet. Getting INqNfcV1_1 Service");
+                Log.d(TAG, "INqNfc 2.0 interface not initialized yet. Getting INqNfcV2_0 Service");
                 mNqHal = INqNfc.getService();
             }
             if(mNqHal != null) {
@@ -108,7 +108,7 @@ public class NativeNfcManager implements DeviceHost {
             }
         }
         catch(RemoteException | NoSuchElementException e) {
-            Log.e(TAG, "INqNfc 1.1 element not supported");
+            Log.e(TAG, "INqNfc 2.0 element not supported");
         }
 
         if(isHalServiceSupported == false) {
@@ -253,6 +253,9 @@ public class NativeNfcManager implements DeviceHost {
     public native int   getDefaultDesfireRoute();
 
     @Override
+    public native int   getT4TNfceePowerState();
+
+    @Override
     public native int   getDefaultMifareCLTRoute();
 
     @Override
@@ -373,6 +376,11 @@ public class NativeNfcManager implements DeviceHost {
     }
 
     @Override
+    public int configureSecureReaderMode(boolean on, String readerType) {
+        return mMposMgr.doConfigureSecureReaderMode(on, readerType);
+    }
+
+    @Override
     public boolean mposGetReaderMode() {
         return mMposMgr.doMposGetReaderMode();
     }
@@ -385,6 +393,20 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public byte[] doReadT4tData(byte[] fileId) {
       return mT4tNfceeMgr.doReadT4tData(fileId);
+    }
+    @Override
+    public boolean doLockT4tData(boolean lock) {
+      return mT4tNfceeMgr.doLockT4tData(lock);
+    }
+
+    @Override
+    public boolean isLockedT4tData() {
+      return mT4tNfceeMgr.isLockedT4tData();
+    }
+
+    @Override
+    public boolean doClearNdefT4tData() {
+      return mT4tNfceeMgr.doClearNdefT4tData();
     }
 
     private native NativeLlcpConnectionlessSocket doCreateLlcpConnectionlessSocket(int nSap,
@@ -612,38 +634,13 @@ public class NativeNfcManager implements DeviceHost {
         mListener.onLlcpFirstPacketReceived(device);
     }
 
-    /* Reader over SWP listeners*/
-    private void notifyonReaderRequestedFail() {
-        mListener.onReaderRequestedFail();
+    /* Reader over SWP/SCR listeners*/
+    private void notifyonMposManagerEvents(int event) {
+        mListener.onScrNotifyEvents(event);
     }
 
     private void notifyHostEmuActivated(int technology) {
         mListener.onHostCardEmulationActivated(technology);
-    }
-
-    private void notifyonReaderStartSuccess() {
-        mListener.onReaderStartSuccess();
-    }
-
-    private void notifyonReaderStopSuccess() {
-        mListener.onReaderStopSuccess();
-    }
-
-    private void notifyonReaderRestart() {
-        mListener.onReaderRestart();
-    }
-
-    private void notifyonReaderRemoveCard() {
-        mListener.onReaderRemoveCard();
-    }
-
-    private void notifyonReaderStartFail() {
-        mListener.onReaderStartFail();
-    }
-
-
-    private void notifyonReaderTimeout() {
-        mListener.onReaderTimeout();
     }
 
     private void notifyHostEmuData(int technology, byte[] data) {

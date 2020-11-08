@@ -3,7 +3,7 @@
  *  Copyright (c) 2016, The Linux Foundation. All rights reserved.
  *  Not a Contribution.
  *
- *  Copyright (C) 2018-2019 NXP Semiconductors
+ *  Copyright (C) 2018-2020 NXP Semiconductors
  *  The original Work has been changed by NXP Semiconductors.
  *
  *  Copyright (C) 2012 The Android Open Source Project
@@ -442,19 +442,31 @@ void SecureElement::notifyRfFieldEvent (bool isActive)
 
 
     mMutex.lock();
+    JNIEnv* e = NULL;
+    if (mNativeData == NULL) {
+        DLOG_IF(ERROR, nfc_debug_enabled)
+                << StringPrintf("%s: mNativeData is null", fn);
+        return;
+    }
+    ScopedAttach attach(mNativeData->vm, &e);
+    if (e == NULL) {
+      LOG(ERROR) << StringPrintf("jni env is null");
+      return;
+    }
     int ret = clock_gettime (CLOCK_MONOTONIC, &mLastRfFieldToggle);
     if (ret == -1) {
         DLOG_IF(ERROR, nfc_debug_enabled)
                 << StringPrintf("%s: clock_gettime failed", fn);
         // There is no good choice here...
     }
-    if (isActive)
-    {
+    if (isActive) {
         mRfFieldIsOn = true;
-    }
-    else
-    {
+        e->CallVoidMethod(mNativeData->manager,
+                                android::gCachedNfcManagerNotifyRfFieldActivated);
+    } else {
         mRfFieldIsOn = false;
+        e->CallVoidMethod(mNativeData->manager,
+                          android::gCachedNfcManagerNotifyRfFieldDeactivated);
     }
     mMutex.unlock();
     DLOG_IF(ERROR, nfc_debug_enabled)
@@ -1501,6 +1513,7 @@ tNFA_EE_INFO *SecureElement::findEeByHandle (tNFA_HANDLE eeHandle)
 tNFA_HANDLE SecureElement::getEseHandleFromGenericId(jint eseId)
 {
     uint16_t handle = NFA_HANDLE_INVALID;
+    RoutingManager& rm = RoutingManager::getInstance();
     static const char fn [] = "SecureElement::getEseHandleFromGenericId";
     LOG(INFO) << StringPrintf("%s: enter; ESE-ID = 0x%02X", fn, eseId);
 
@@ -1509,11 +1522,19 @@ tNFA_HANDLE SecureElement::getEseHandleFromGenericId(jint eseId)
     {
         handle = EE_HANDLE_0xF3; //0x4C0;
     }
-    else if(eseId == UICC_ID || eseId == EE_APP_HANLDE_UICC) //UICC
+    else if(eseId == UICC_ID || eseId == UICC2_ID)
     {
-        handle = SecureElement::getInstance().EE_HANDLE_0xF4; //0x402;
+      handle = rm.getUiccRouteLocId(eseId);
     }
-    else if(eseId == UICC2_ID || eseId == EE_APP_HANLDE_UICC2) //UICC
+    else if(eseId == T4T_NFCEE_ID) //T4T NFCEE
+    {
+      handle = SecureElement::getInstance().EE_HANDLE_0xFE;  // 0x410;
+    }
+    else if(eseId == EE_APP_HANLDE_UICC) //UICC
+    {
+      handle = SecureElement::getInstance().EE_HANDLE_0xF4;  // 0x402;
+    }
+    else if(eseId == EE_APP_HANLDE_UICC2) //UICC
     {
         handle = RoutingManager::getInstance().getUicc2selected(); //0x402;
     }
@@ -1694,6 +1715,10 @@ struct timespec SecureElement::getLastRfFiledToggleTime(void)
 void SecureElement::finalize() {
   mIsInit     = false;
   mNativeData = NULL;
+#if(NXP_EXTNS == TRUE)
+  mRfFieldIsOn = false;
+  memset (&mLastRfFieldToggle, 0, sizeof(mLastRfFieldToggle));
+#endif
 }
 
 /*******************************************************************************

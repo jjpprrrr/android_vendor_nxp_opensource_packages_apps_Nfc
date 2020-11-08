@@ -1,5 +1,6 @@
 cc_library_shared {
     name: "libnqnfc_nci_jni",
+    system_ext_specific: true,
 
     cflags: [
         "-Wall",
@@ -21,8 +22,11 @@ cc_library_shared {
 
     srcs: ["**/*.cpp"],
 
+    header_libs: [
+        "libnativehelper_header_only",
+    ],
+
     include_dirs: [
-        "libnativehelper/include/nativehelper",
         "vendor/nxp/opensource/commonsys/external/libnfc-nci/src/nfa/include",
         "vendor/nxp/opensource/commonsys/external/libnfc-nci/src/nfc/include",
         "vendor/nxp/opensource/commonsys/external/libnfc-nci/src/include",
@@ -36,7 +40,6 @@ cc_library_shared {
         "extns/pn54x/inc",
         "extns/pn54x/src/common",
         "extns/pn54x/src/mifare",
-        "extns/pn54x/src/log",
         "extns/pn54x/src/utils",
     ],
 
@@ -51,12 +54,18 @@ cc_library_shared {
         "libbase",
         "android.hardware.nfc@1.0",
         "android.hardware.nfc@1.1",
-        "vendor.nxp.hardware.nfc@1.0",
+        "android.hardware.nfc@1.2",
+        "vendor.nxp.hardware.nfc@2.0",
+        "vendor.nxp.nxpnfclegacy@1.0",
     ],
 
     product_variables: {
         debuggable: {
             cflags: ["-DDCHECK_ALWAYS_ON"],
         },
+    },
+    sanitize: {
+        cfi: true,
+        integer_overflow: true,
     },
 }

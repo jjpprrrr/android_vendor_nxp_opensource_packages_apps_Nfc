@@ -29,7 +29,7 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 *
-*  Copyright 2018-2019 NXP
+*  Copyright 2018-2020 NXP
 *
 ******************************************************************************/
 #pragma once
@@ -59,6 +59,8 @@ extern const char* gNativeNfcManagerClassName;
 extern const char* gNativeNfcSecureElementClassName;
 extern jmethodID gCachedNfcManagerNotifySeListenDeactivated;
 extern jmethodID gCachedNfcManagerNotifySeListenActivated;
+extern jmethodID gCachedNfcManagerNotifyRfFieldDeactivated;
+extern jmethodID gCachedNfcManagerNotifyRfFieldActivated;
 extern jmethodID gCachedNfcManagerNotifySeInitialized;
 extern const char* gNativeNfcMposManagerClassName;
 extern const char* gNativeT4tNfceeClassName;

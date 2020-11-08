@@ -13,6 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/******************************************************************************
+*
+*  The original Work has been changed by NXP.
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*  http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+*
+*  Copyright 2019-2020 NXP
+*
+******************************************************************************/
 
 package com.android.nfc;
 
@@ -132,6 +151,11 @@ interface P2pEventListener {
      * Indicates the P2P device went out of range.
      */
     public void onP2pOutOfRange();
+
+    /**
+     * Indicates the P2P Beam UI is in idle mode.
+     */
+    public boolean isP2pIdle();
 
     public interface Callback {
         public void onP2pSendConfirmed();
@@ -443,6 +467,10 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             mPeerLlcpVersion = peerLlcpVersion;
             switch (mLinkState) {
                 case LINK_STATE_DOWN:
+                    if (!mEventListener.isP2pIdle() && mSendState != SEND_STATE_PENDING) {
+                        break;
+                    }
+
                     if (DBG) Log.d(TAG, "onP2pInRange()");
                     // Start taking a screenshot
                     mEventListener.onP2pInRange();
@@ -864,9 +892,11 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
             } else {
                 return HANDOVER_UNSUPPORTED;
             }
-
-            if (!beamManager.startBeamSend(mContext,
-                    mHandoverDataParser.getOutgoingHandoverData(response), uris, userHandle)) {
+            HandoverDataParser.BluetoothHandoverData data = mHandoverDataParser.getOutgoingHandoverData(response);
+            if (data == null) {
+                return HANDOVER_FAILURE;
+            }
+            if (!beamManager.startBeamSend(mContext, data, uris, userHandle)) {
                 return HANDOVER_BUSY;
             }
 
@@ -1099,7 +1129,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                     mSendState = SEND_STATE_NOTHING_TO_SEND;
                     if (DBG) Log.d(TAG, "onP2pReceiveComplete()");
                     mEventListener.onP2pReceiveComplete(false);
-                    StatsLog.write(StatsLog.NFC_BEAM_OCCURRED, StatsLog.NFC_BEAM_OCCURRED__OPERATION__RECEIVE);
+                    NfcStatsLog.write(NfcStatsLog.NFC_BEAM_OCCURRED, NfcStatsLog.NFC_BEAM_OCCURRED__OPERATION__RECEIVE);
                 }
                 break;
             case MSG_RECEIVE_COMPLETE:
@@ -1115,7 +1145,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                     if (DBG) Log.d(TAG, "onP2pReceiveComplete()");
                     mEventListener.onP2pReceiveComplete(true);
                     NfcService.getInstance().sendMockNdefTag(m);
-                    StatsLog.write(StatsLog.NFC_BEAM_OCCURRED, StatsLog.NFC_BEAM_OCCURRED__OPERATION__RECEIVE);
+                    NfcStatsLog.write(NfcStatsLog.NFC_BEAM_OCCURRED, NfcStatsLog.NFC_BEAM_OCCURRED__OPERATION__RECEIVE);
                 }
                 break;
             case MSG_HANDOVER_NOT_SUPPORTED:
@@ -1148,7 +1178,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                             Log.e(TAG, "Failed NDEF completed callback: " + e.getMessage());
                         }
                     }
-                    StatsLog.write(StatsLog.NFC_BEAM_OCCURRED, StatsLog.NFC_BEAM_OCCURRED__OPERATION__SEND);
+                    NfcStatsLog.write(NfcStatsLog.NFC_BEAM_OCCURRED, NfcStatsLog.NFC_BEAM_OCCURRED__OPERATION__SEND);
                 }
                 break;
             case MSG_HANDOVER_BUSY:
